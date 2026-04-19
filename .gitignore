@@ -1,0 +1,12 @@
+# python files
+__pycache__/
+
+# input data
+data/
+
+# training output
+outputs/
+output/
+
+# models
+models/

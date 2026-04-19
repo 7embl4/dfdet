@@ -1,0 +1,11 @@
+train:
+  _target_: src.dataset.FFWithDepthDataset
+  data_dir: "data/FaceForensics_faces"
+  part: "train"
+  instance_transforms: ${transforms.instance_transforms}
+  augmentations: ${transforms.augmentations}
+val:
+  _target_: src.dataset.FFWithDepthDataset
+  data_dir: "data/FaceForensics_faces"
+  part: "val"
+  instance_transforms: ${transforms.instance_transforms}
