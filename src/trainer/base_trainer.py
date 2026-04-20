@@ -120,7 +120,9 @@ class BaseTrainer:
                 # TODO: add writing to tb, cometml
 
                 best, early_stop = self._monitor_performance(logs)
-                # TODO: add cache clear 
+                
+                if self.trainer_config.get("clear_cache", None):
+                    torch.cuda.empty_cache()
 
                 if (step + 1) % self.save_period == 0 or best:
                     self._save_checkpoint(step + 1, best)
@@ -162,14 +164,19 @@ class BaseTrainer:
 
     def _monitor_performance(self, logs: dict):
         best = False
-        early_stop = False
+        stop_process = False
         try:
             if self.mnt_mode == "min":
                 improved = logs[self.mnt_name] <= self.mnt_best
             else:
                 improved = logs[self.mnt_name] >= self.mnt_best
         except KeyError:
-            self.logger.warning(f"Warning: Metric or Loss {self.mnt_name} is not found.")
+            self.logger.warning(
+                f"""
+                Warning: Metric or Loss {self.mnt_name} is not found.
+                Early stop is disabled.
+                """
+            )
             self.early_stop = False
         
         if improved:
@@ -182,9 +189,9 @@ class BaseTrainer:
         if self.early_stop:
             if self.not_improved_count >= self.mnt_patience:
                 self.logger.info("Stopping on early stop")
-            early_stop = True
+            stop_process = True
         
-        return best, early_stop
+        return best, stop_process
 
     def process_batch(self, batch: dict, metrics: list):
         raise NotImplementedError()
