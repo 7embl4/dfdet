@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 
 import clip
-from feat import Detector
+from src.model.fau_detector import FAUDetector
 
 
 class FAUModel(nn.Module):
@@ -35,7 +35,7 @@ class FAUModel(nn.Module):
         self.device = device
 
         # fau branch
-        self.fau_extractor = self._build_fau_extractor()
+        self.fau_extractor = FAUDetector()
         self.fau_lstm = nn.LSTM(
             input_size=input_features, 
             hidden_size=hidden_size,
@@ -45,7 +45,7 @@ class FAUModel(nn.Module):
         )
 
         # image branch
-        self.image_encoder = self._build_image_encoder(encoder_model)
+        self.image_encoder, _ = clip.load(encoder_model, device=self.device)
         self.image_proj = nn.Linear()
 
         # fusion
@@ -66,20 +66,3 @@ class FAUModel(nn.Module):
 
     def forward(self, frames: torch.Tensor, **batch):
         pass
-
-    def _build_fau_extractor(self):
-        fau_detector = Detector(
-            face_model="retinaface",
-            landmark_model="mobilefacenet",
-            au_model="xgb",
-            emotion_model="resmasknet",
-            device=self.device
-        )
-        return fau_detector
-
-    def _build_image_encoder(self, encoder_model):
-        image_encoder, _ = clip.load(encoder_model)
-        for p in image_encoder.parameters():
-            p.requires_grad = False
-
-        return image_encoder

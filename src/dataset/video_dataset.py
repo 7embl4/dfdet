@@ -14,18 +14,18 @@ class VideoDataset(BaseDataset):
         self, 
         # data
         data_dir,
-        part,
-        val_size,
-        chunk_size,
+        part="train",
+        val_size=0.1,
+        chunk_size=32,
 
         # face detector 
-        extractor,
-        input_size,
-        output_size,
-        score_th,
-        nms_th,
-        top_k,
-        margin,
+        extractor="models/face_detection_yunet_2023mar.onnx",
+        input_size=320,
+        output_size=224,
+        score_th=0.7,
+        nms_th=0.4,
+        top_k=5000,
+        margin=50,
 
         # other
         *args,
@@ -96,6 +96,7 @@ class VideoDataset(BaseDataset):
         return index
     
     def __getitem__(self, idx):
+        # TODO: FIX THE PROBLEM OF CHUNKS WITHOUT FACES
         instance_data = self._index[idx]
         frames = self._read_video(instance_data["video_path"])
         frames = self._get_faces(frames)
