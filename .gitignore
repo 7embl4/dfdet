@@ -10,3 +10,7 @@ output/
 
 # models
 models/
+
+# test files
+test.py
+test.ipynb
