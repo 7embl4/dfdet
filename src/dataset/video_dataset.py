@@ -26,6 +26,8 @@ class VideoDataset(BaseDataset):
         nms_th=0.4,
         top_k=5000,
         margin=50,
+        num_repeats=16,
+        n_frames=8,
 
         # other
         *args,
@@ -46,11 +48,16 @@ class VideoDataset(BaseDataset):
         )
         self.output_size = output_size
         self.margin = margin
+        self.num_repeats = num_repeats
+        self.n_frames = n_frames
 
         index = self._load_or_create_index()
         super().__init__(index, *args, **kwargs)
 
     def _load_or_create_index(self):
+        """
+        Load existing index or create if it doesn't exist.
+        """
         index = None
         filename = "index_" + self.part + f"_{self.val_size}.json"
         if (self.data_dir / filename).exists():
@@ -61,6 +68,9 @@ class VideoDataset(BaseDataset):
         return index
 
     def _create_index(self):
+        """
+        Creates index file for a dataset.
+        """
         index = []
         print(f"Creating {self.part} index")
 
@@ -96,10 +106,11 @@ class VideoDataset(BaseDataset):
         return index
     
     def __getitem__(self, idx):
-        # TODO: FIX THE PROBLEM OF CHUNKS WITHOUT FACES
+        """
+        Gets video from a dataset and applies transforms on it.
+        """
         instance_data = self._index[idx]
-        frames = self._read_video(instance_data["video_path"])
-        frames = self._get_faces(frames)
+        frames = self._read_video_and_get_faces(instance_data["video_path"])
         frames = torch.from_numpy(frames).permute(0, 3, 1, 2)
         instance_data.update({"frames": frames})
 
@@ -109,40 +120,109 @@ class VideoDataset(BaseDataset):
 
         return instance_data
 
-    def _read_video(self, video_path: str):
+    def _read_video_and_get_faces(self, video_path: str):
+        """
+        Gets random chunk of a video and crop faces from it.
+        Randomly generates start of a chunk until obtained chunk is valid (has faces for whole duration)
+        or until `self.num_repeats` is reached (which statistically almost impossible).
+
+        Args:
+            video_path (str): path to video
+        """
         cap = cv2.VideoCapture(video_path.strip())
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        start = random.randint(0, total_frames - self.chunk_size)
-        end = start + self.chunk_size
-        
-        frames = []
-        for ind in range(start, end):
-            cap.set(cv2.CAP_PROP_POS_FRAMES, ind)
-            ret, frame = cap.read()
-        
-            if not ret:
-                print(f"Warning: cannot read {ind}th frame of video {video_path}")
-                continue
-            
-            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            frames.append(frame)
-        
-        return frames
 
-    def _get_faces(self, frames: list[np.ndarray]):
+        check_indices = np.linspace(0, self.chunk_size - 1, self.n_frames).astype(np.int64)
+
         faces = []
-        for frame in frames:
-            height, width = frame.shape[:2]
-            self.detector.setInputSize((width, height))
-            _, detected_faces = self.detector.detect(frame)
+        for _ in range(self.num_repeats):
+            start = random.randint(0, total_frames - self.chunk_size)
 
-            if detected_faces is not None:
-                x, y, w, h = detected_faces[0][:4].astype(np.int32)
-                x1, x2 = max(x - self.margin, 0), min(x + w + self.margin, width)
-                y1, y2 = max(y - self.margin, 0), min(y + h + self.margin, height)
+            indices = []
+            frames = []
+            for ind in range(self.chunk_size):
+                cap.set(cv2.CAP_PROP_POS_FRAMES, start + ind)
+                ret, frame = cap.read()
+                if not ret:
+                    print(f"Warning: cannot read {start + ind}th frame of video {video_path}")
+                    continue
                 
-                face_crop = frame[y1:y2, x1:x2]
-                face_crop = cv2.resize(face_crop, (self.output_size, self.output_size))
-                faces.append(face_crop)
+                frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                frames.append(frame)
+                
+                if ind in check_indices:
+                    face = self._get_face(frame)
+                    
+                    if face:
+                        faces.append(face)
+                        indices.append(ind)    
+            
+            # found face on first and last frames and
+            # found face on at least half of frames
+            if (
+                0 in indices and (self.chunk_size - 1) in indices and 
+                len(faces) >= self.n_frames // 2
+            ):
+                return self._interpolate_faces(faces, indices, frames)
+            
+            faces = []
+        return None
+
+    def _get_face(self, frame: np.ndarray):
+        """
+        Get face from a video using `YuNet` face detection model.
+
+        Args:
+            frame (np.nparray): frame in numpy format (H, W, C)
+        """
+        height, width = frame.shape[:2]
+        self.detector.setInputSize((width, height))
+        _, detected_faces = self.detector.detect(frame)
+
+        if detected_faces is not None:
+            x, y, w, h = detected_faces[0][:4].astype(np.int32)
+            x1, x2 = max(x - self.margin, 0), min(x + w + self.margin, width)
+            y1, y2 = max(y - self.margin, 0), min(y + h + self.margin, height)
+            
+            face_crop = frame[y1:y2, x1:x2]
+            face_crop = cv2.resize(face_crop, (self.output_size, self.output_size))
         
-        return np.stack(faces)
+            return {
+                "face_crop": face_crop,
+                "bbox": (x1, x2, y1, y2)
+            }
+        
+        return None
+
+    def _interpolate_faces(self, faces: list[dict], indices: list[int], frames: list[np.ndarray]):
+        """
+        Interpolates faces between found ones by averaging 
+        bounding boxes of closest frames with detected faces.
+
+        Args:
+            faces (list[dict]): found faces in format of dicts 
+                with `face_crop` (image of a face) and `bbox` (coords of a face)
+            indices (list[int]): frames indices in chunk (0...chunk_size-1) where faces were found
+            frames (list[np.ndarray]): all frames of a chunk
+        """
+        interpolated_faces = [faces[0]["face_crop"]]
+        for i in range(len(indices) - 1):
+            left = indices[i] + 1
+            right = indices[i + 1]
+
+            left_bbox = faces[i]["bbox"]
+            right_bbox = faces[i + 1]["bbox"]
+            inter_bbox = [
+                int((left_coord + right_coord) / 2) 
+                for left_coord, right_coord in zip(left_bbox, right_bbox)
+            ]
+            x1, x2, y1, y2 = inter_bbox
+
+            for j in range(left, right):
+                face = frames[j][y1:y2, x1:x2]
+                face = cv2.resize(face, (self.output_size, self.output_size))
+                interpolated_faces.append(face)
+
+            interpolated_faces.append(faces[i + 1]["face_crop"])
+
+        return np.stack(interpolated_faces)
