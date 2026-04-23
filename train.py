@@ -38,9 +38,10 @@ def main(config: DictConfig):
     # build model
     model = instantiate(config.model)
     model.to(device)
+    print(model)
 
     # instanciate criterion, optim, and scheduler
-    criterion = instantiate(config.loss)
+    criterion = instantiate(config.criterion)
     optimizer = instantiate(config.optimizer, params=model.parameters())
     lr_scheduler = instantiate(config.lr_scheduler, optimizer=optimizer)
 

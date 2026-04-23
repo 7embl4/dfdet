@@ -1,5 +1,5 @@
 defaults:
-  - model: fau_model
+  - model: fau_expert
   - metrics: default
   - dataset: video_dataset
   - dataloader: default
@@ -18,10 +18,9 @@ lr_scheduler:
   _target_: torch.optim.lr_scheduler.ExponentialLR
   gamma: 0.999
 
-loss:
+criterion:
   _target_: src.loss.cross_entropy.CrossEntropyLoss
   train_dataset: ${dataset.train}
-  device: ${device}
   name: "cross_entropy"
 
 trainer:
@@ -32,13 +31,13 @@ trainer:
   n_steps: null
   eval_steps: null
   save_period: 10  # depends on strategy
-  device_tensors: ["frame", "target"]
+  device_tensors: ["frames", "target"]
   clear_cache: False
   resume_from: null
 
   # early stopping
   early_stopping: True
-  value_name: "val_cross_entropy"  # name of a loss or a metric to track (part_name)
+  value_name: "val_auc"  # name of a loss or a metric to track (part_name)
   patience: 5
   mode: "min"  # min/max of a value
   

@@ -7,7 +7,7 @@ from PIL import Image
 
 from src.dataset import BaseDataset
 from src.utils.io import ROOT_PATH, write_json, read_json
-
+import time
 
 class VideoDataset(BaseDataset):
     def __init__(
@@ -131,17 +131,16 @@ class VideoDataset(BaseDataset):
         """
         cap = cv2.VideoCapture(video_path.strip())
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-
         check_indices = np.linspace(0, self.chunk_size - 1, self.n_frames).astype(np.int64)
 
         faces = []
         for _ in range(self.num_repeats):
             start = random.randint(0, total_frames - self.chunk_size)
+            cap.set(cv2.CAP_PROP_POS_FRAMES, start)
 
             indices = []
             frames = []
             for ind in range(self.chunk_size):
-                cap.set(cv2.CAP_PROP_POS_FRAMES, start + ind)
                 ret, frame = cap.read()
                 if not ret:
                     print(f"Warning: cannot read {start + ind}th frame of video {video_path}")
@@ -151,17 +150,16 @@ class VideoDataset(BaseDataset):
                 frames.append(frame)
                 
                 if ind in check_indices:
-                    face = self._get_face(frame)
-                    
+                    face = self._get_face(frame)                    
                     if face:
                         faces.append(face)
-                        indices.append(ind)    
+                        indices.append(ind)
             
             # found face on first and last frames and
             # found face on at least half of frames
             if (
-                0 in indices and (self.chunk_size - 1) in indices and 
-                len(faces) >= self.n_frames // 2
+                0 in indices and (self.chunk_size - 1) in indices 
+                and len(faces) >= self.n_frames // 2
             ):
                 return self._interpolate_faces(faces, indices, frames)
             

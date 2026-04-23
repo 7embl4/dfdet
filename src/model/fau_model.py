@@ -91,8 +91,6 @@ class FAUModel(nn.Module):
 
         # lstm and projection
         aus, (h_n, c_n) = self.fau_lstm(aus)  # [B, T, 2*D]
-        print(embeddings.dtype)
-        print(self.enc_proj.weight.dtype)
         embeddings = self.enc_proj(embeddings)  # [B, T, 2*D]
 
         # attention fusion and classification
@@ -104,4 +102,4 @@ class FAUModel(nn.Module):
         out = torch.mean(out, dim=1)  # [B, 2*D]
         out = self.classifier(out)
 
-        return out
+        return {"pred": out}

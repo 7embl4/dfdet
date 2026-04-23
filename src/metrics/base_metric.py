@@ -32,9 +32,10 @@ class BaseMetric:
         if isinstance(value, torch.Tensor) or isinstance(value, np.ndarray):
             value = value.item()
 
-        self._total += value
-        self._n += 1
-        self._average = self._total / self._n
+        if value is not None:
+            self._total += value
+            self._n += 1
+            self._average = self._total / self._n
 
     def result(self):
         """

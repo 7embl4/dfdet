@@ -85,7 +85,7 @@ class BaseTrainer:
 
         # saving and logging
         self._last_step = 0
-        self.output_dir = ROOT_PATH / self.trainer_config.output_dir
+        self.output_dir = ROOT_PATH / self.trainer_config.save_dir / config.logging.run_name
         if self.strategy == "epochs":
             self.save_period = self.trainer_config.save_period * self.epoch_len
         else:
