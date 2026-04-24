@@ -13,7 +13,7 @@ class F1(BaseMetric):
 
     def update(self, pred: torch.Tensor, target: torch.Tensor, **batch):
         self.all_probs.extend(pred.detach().cpu().numpy())
-        self.all_targets.extend(target.cpu().numpy())
+        self.all_targets.extend(target.detach().cpu().numpy())
 
     def result(self):
         all_preds = (np.array(self.all_probs) > 0.5).astype(int)

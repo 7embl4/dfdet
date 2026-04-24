@@ -12,7 +12,7 @@ class AUC(BaseMetric):
 
     def update(self, pred: torch.Tensor, target: torch.Tensor, **batch):
         self.all_probs.extend(pred.detach().cpu().numpy())
-        self.all_targets.extend(target.cpu().numpy())
+        self.all_targets.extend(target.detach().cpu().numpy())
 
     def avg(self):
         return roc_auc_score(self.all_targets, self.all_probs)

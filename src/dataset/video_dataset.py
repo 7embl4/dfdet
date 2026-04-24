@@ -28,6 +28,7 @@ class VideoDataset(BaseDataset):
         margin=50,
         num_repeats=16,
         n_frames=8,
+        max_res=640,
 
         # other
         *args,
@@ -50,6 +51,7 @@ class VideoDataset(BaseDataset):
         self.margin = margin
         self.num_repeats = num_repeats
         self.n_frames = n_frames
+        self.max_res = max_res
 
         index = self._load_or_create_index()
         super().__init__(index, *args, **kwargs)
@@ -109,8 +111,13 @@ class VideoDataset(BaseDataset):
         """
         Gets video from a dataset and applies transforms on it.
         """
-        instance_data = self._index[idx]
+        instance_data = dict(self._index[idx])
         frames = self._read_video_and_get_faces(instance_data["video_path"])
+        if frames is None:
+            print(f"Warning: No valid frames in {instance_data['video_path']}")
+            instance_data.update({"frames": None})
+            return instance_data
+
         frames = torch.from_numpy(frames).permute(0, 3, 1, 2)
         instance_data.update({"frames": frames})
 
@@ -161,10 +168,15 @@ class VideoDataset(BaseDataset):
                 0 in indices and (self.chunk_size - 1) in indices 
                 and len(faces) >= self.n_frames // 2
             ):
-                return self._interpolate_faces(faces, indices, frames)
-            
-            faces = []
-        return None
+                faces = self._interpolate_faces(faces, indices, frames)
+                break
+            else:
+                faces.clear()
+                frames.clear()
+                indices.clear()
+
+        cap.release()
+        return faces if len(faces) > 0 else None
 
     def _get_face(self, frame: np.ndarray):
         """
@@ -173,12 +185,19 @@ class VideoDataset(BaseDataset):
         Args:
             frame (np.nparray): frame in numpy format (H, W, C)
         """
-        # TODO: add face size check
+        # lower image resolution if it's to high,
+        # since YuNet can't find faces on high resolutions
+        long_side = max(frame.shape[:2])
+        if long_side > self.max_res:
+            scale = self.max_res / long_side
+            frame = cv2.resize(frame, (int(frame.shape[1] * scale), int(frame.shape[0] * scale)))
 
+        # set up detector and detect faces
         height, width = frame.shape[:2]
         self.detector.setInputSize((width, height))
         _, detected_faces = self.detector.detect(frame)
 
+        # crop the largest face 
         if detected_faces is not None:
             x, y, w, h = detected_faces[0][:4].astype(np.int32)
             x1, x2 = max(x - self.margin, 0), min(x + w + self.margin, width)
@@ -210,6 +229,7 @@ class VideoDataset(BaseDataset):
             left = indices[i] + 1
             right = indices[i + 1]
 
+            # get bboxes and interpolate them
             left_bbox = faces[i]["bbox"]
             right_bbox = faces[i + 1]["bbox"]
             inter_bbox = [
@@ -218,6 +238,7 @@ class VideoDataset(BaseDataset):
             ]
             x1, x2, y1, y2 = inter_bbox
 
+            # take faces from intermediate frames
             for j in range(left, right):
                 face = frames[j][y1:y2, x1:x2]
                 face = cv2.resize(face, (self.output_size, self.output_size))
