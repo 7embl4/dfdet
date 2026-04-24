@@ -154,7 +154,7 @@ class VideoDataset(BaseDataset):
                     if face:
                         faces.append(face)
                         indices.append(ind)
-            
+
             # found face on first and last frames and
             # found face on at least half of frames
             if (
@@ -173,6 +173,8 @@ class VideoDataset(BaseDataset):
         Args:
             frame (np.nparray): frame in numpy format (H, W, C)
         """
+        # TODO: add face size check
+
         height, width = frame.shape[:2]
         self.detector.setInputSize((width, height))
         _, detected_faces = self.detector.detect(frame)

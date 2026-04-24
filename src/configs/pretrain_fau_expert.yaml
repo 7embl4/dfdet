@@ -38,12 +38,12 @@ trainer:
   # early stopping
   early_stopping: True
   value_name: "val_auc"  # name of a loss or a metric to track (part_name)
-  patience: 5
-  mode: "min"  # min/max of a value
+  patience: 15
+  mode: "max"  # min/max of a value
   
   # saving
   save_dir: "output"
 
 logging:
-  run_name: "fau_model_pretrain"
-  config_path: "logger_config.json"
+  run_name: "fau_expert_pretrain"
+  config_path: "logger/logger_config.json"

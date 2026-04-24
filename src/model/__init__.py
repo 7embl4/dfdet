@@ -1,1 +1,1 @@
-from src.model.fau_model import FAUModel
+from src.model.fau_expert import FAUExpert

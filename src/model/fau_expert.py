@@ -5,7 +5,7 @@ import clip
 from src.model.fau_detector import FAUDetector
 
 
-class FAUModel(nn.Module):
+class FAUExpert(nn.Module):
     """
     Facial Action Units (FAUs) Expert based on HAUTE (https://dl.acm.org/doi/10.1145/3774904.3792919).
     TL;DR: FAUs analysed with BiLSTM and image embeddings from CLIP are fused in multihead attention.

@@ -1,4 +1,4 @@
-_target_: src.model.FAUModel
+_target_: src.model.FAUExpert
 input_features: 12
 hidden_size: 64
 num_layers: 2
