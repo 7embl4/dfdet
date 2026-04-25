@@ -49,9 +49,7 @@ class BaseTrainer:
         # training strategy
         self.strategy = self.trainer_config.strategy
         assert self.strategy in ["epochs", "steps"], ValueError(f"Unknown strategy {self.strategy}")
-        self.eval_steps = self.trainer_config.get("eval_steps", None)
-        if not self.trainer_config.eval_steps:
-            self.eval_steps = len(self.train_dataloader)
+        
 
         # train loop
         self.epoch_len = len(self.train_dataloader)
@@ -61,6 +59,11 @@ class BaseTrainer:
             self.total_steps = self.trainer_config.n_epochs * self.epoch_len
         else:
             self.total_steps = self.trainer_config.n_steps
+
+        # evaluation
+        self.eval_steps = self.trainer_config.get("eval_steps", None)
+        if not self.eval_steps:
+            self.eval_steps = self.epoch_len
         
         self.train_loop = tqdm(
             dataloader_loop(self.train_dataloader, self.total_steps, self.epoch_len),
@@ -111,6 +114,8 @@ class BaseTrainer:
                 logs = {f"train_{metric.name}": metric.avg() for metric in self.train_metrics}
                 logs.update({f"grad_norm": self._calc_grad_norm()})
                 logs.update({f"train_{self.criterion.name}": self.criterion.avg()})
+                self._reset_metrics(self.train_metrics)
+                
                 logs.update(self._evaluate(step, self.total_steps))
 
                 # TODO: make better output
@@ -150,17 +155,18 @@ class BaseTrainer:
 
         return eval_logs
 
+    @torch.no_grad()
     def _evaluation_epoch(self, part, dataloader):
         self._reset_metrics(self.inference_metrics)
         eval_loop = tqdm(
             enumerate(dataloader),
             desc=part,
-            total=len(dataloader)
+            total=len(dataloader),
+            leave=False
         )
 
-        with torch.no_grad():
-            for _, batch in eval_loop:
-                batch = self.process_batch(batch, metrics=self.inference_metrics)
+        for _, batch in eval_loop:
+            batch = self.process_batch(batch, metrics=self.inference_metrics)
 
     def _monitor_performance(self, logs: dict):
         best = False
@@ -189,7 +195,7 @@ class BaseTrainer:
         if self.early_stop:
             if self.not_improved_count >= self.mnt_patience:
                 self.logger.info("Stopping on early stop")
-            stop_process = True
+                stop_process = True
         
         return best, stop_process
 
