@@ -49,9 +49,7 @@ class BaseTrainer:
         # training strategy
         self.strategy = self.trainer_config.strategy
         assert self.strategy in ["epochs", "steps"], ValueError(f"Unknown strategy {self.strategy}")
-        self.eval_steps = self.trainer_config.get("eval_steps", None)
-        if not self.trainer_config.eval_steps:
-            self.eval_steps = len(self.train_dataloader)
+        
 
         # train loop
         self.epoch_len = len(self.train_dataloader)
@@ -61,6 +59,11 @@ class BaseTrainer:
             self.total_steps = self.trainer_config.n_epochs * self.epoch_len
         else:
             self.total_steps = self.trainer_config.n_steps
+
+        # evaluation
+        self.eval_steps = self.trainer_config.get("eval_steps", None)
+        if not self.eval_steps:
+            self.eval_steps = self.epoch_len
         
         self.train_loop = tqdm(
             dataloader_loop(self.train_dataloader, self.total_steps, self.epoch_len),
@@ -85,7 +88,7 @@ class BaseTrainer:
 
         # saving and logging
         self._last_step = 0
-        self.output_dir = ROOT_PATH / self.trainer_config.output_dir
+        self.output_dir = ROOT_PATH / self.trainer_config.save_dir / config.logging.run_name
         if self.strategy == "epochs":
             self.save_period = self.trainer_config.save_period * self.epoch_len
         else:
@@ -111,6 +114,8 @@ class BaseTrainer:
                 logs = {f"train_{metric.name}": metric.avg() for metric in self.train_metrics}
                 logs.update({f"grad_norm": self._calc_grad_norm()})
                 logs.update({f"train_{self.criterion.name}": self.criterion.avg()})
+                self._reset_metrics(self.train_metrics)
+                
                 logs.update(self._evaluate(step, self.total_steps))
 
                 # TODO: make better output
@@ -120,7 +125,9 @@ class BaseTrainer:
                 # TODO: add writing to tb, cometml
 
                 best, early_stop = self._monitor_performance(logs)
-                # TODO: add cache clear 
+                
+                if self.trainer_config.get("clear_cache", None):
+                    torch.cuda.empty_cache()
 
                 if (step + 1) % self.save_period == 0 or best:
                     self._save_checkpoint(step + 1, best)
@@ -148,28 +155,34 @@ class BaseTrainer:
 
         return eval_logs
 
+    @torch.no_grad()
     def _evaluation_epoch(self, part, dataloader):
         self._reset_metrics(self.inference_metrics)
         eval_loop = tqdm(
             enumerate(dataloader),
             desc=part,
-            total=len(dataloader)
+            total=len(dataloader),
+            leave=False
         )
 
-        with torch.no_grad():
-            for _, batch in eval_loop:
-                batch = self.process_batch(batch, metrics=self.inference_metrics)
+        for _, batch in eval_loop:
+            batch = self.process_batch(batch, metrics=self.inference_metrics)
 
     def _monitor_performance(self, logs: dict):
         best = False
-        early_stop = False
+        stop_process = False
         try:
             if self.mnt_mode == "min":
                 improved = logs[self.mnt_name] <= self.mnt_best
             else:
                 improved = logs[self.mnt_name] >= self.mnt_best
         except KeyError:
-            self.logger.warning(f"Warning: Metric or Loss {self.mnt_name} is not found.")
+            self.logger.warning(
+                f"""
+                Warning: Metric or Loss {self.mnt_name} is not found.
+                Early stop is disabled.
+                """
+            )
             self.early_stop = False
         
         if improved:
@@ -182,9 +195,9 @@ class BaseTrainer:
         if self.early_stop:
             if self.not_improved_count >= self.mnt_patience:
                 self.logger.info("Stopping on early stop")
-            early_stop = True
+                stop_process = True
         
-        return best, early_stop
+        return best, stop_process
 
     def process_batch(self, batch: dict, metrics: list):
         raise NotImplementedError()

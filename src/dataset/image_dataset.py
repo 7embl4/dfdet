@@ -5,7 +5,7 @@ from src.dataset import BaseDataset
 from src.utils.io import ROOT_PATH, write_json, read_json
 
 
-class FFWithDepthDataset(BaseDataset):
+class ImageDataset(BaseDataset):
     def __init__(
         self, 
         data_dir,

@@ -4,7 +4,7 @@ from torch.utils.data import Dataset
 
 class BaseDataset(Dataset):
     def __init__(
-        self, index, limit=None, shuffle_index=True, instance_transforms=None, augmentations=None
+        self, index, limit=None, shuffle_index=False, instance_transforms=None, augmentations=None
     ):
         self._assert_index_is_valid(index)
         index = self._shuffle_and_limit_index(index, shuffle_index, limit)

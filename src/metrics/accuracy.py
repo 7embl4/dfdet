@@ -8,4 +8,6 @@ class Accuracy(BaseMetric):
         super().__init__(*args, **kwargs)
 
     def update(self, pred: torch.Tensor, target: torch.Tensor, **batch):
-        return torch.sum(torch.argmax(pred, dim=1) == target) / len(target)
+        correct = torch.sum(torch.argmax(pred.detach().cpu(), dim=1) == target.detach().cpu())
+        total = len(target)
+        return correct / total
