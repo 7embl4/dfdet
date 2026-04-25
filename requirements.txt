@@ -1,8 +1,19 @@
+# core
 torch==2.6.0
 torchvision==0.21.0
-numpy==1.26.4
-tqdm
-matplotlib
-pandas
-hydra-core
+opencv-python
+scikit-learn
+
+# models
 openai-clip
+setuptools==72.1.0  # newer versions lead to issues since pkg_resources are depricated
+timm
+
+# configs
+omegaconf
+hydra-core
+
+# other
+numpy==1.26.4
+pillow
+tqdm

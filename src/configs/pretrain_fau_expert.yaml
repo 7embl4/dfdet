@@ -42,7 +42,7 @@ trainer:
   mode: "max"  # min/max of a value
   
   # saving
-  save_dir: "output"
+  save_dir: "saved"
 
 logging:
   run_name: "fau_expert_pretrain"
