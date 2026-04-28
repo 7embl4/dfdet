@@ -140,6 +140,13 @@ class VideoDataset(BaseDataset):
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
         check_indices = np.linspace(0, self.chunk_size - 1, self.n_frames).astype(np.int64)
 
+        # lower image resolution if it's to high,
+        # since YuNet can't find faces on high resolutions
+        video_width = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
+        video_height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
+        long_side = max(video_width, video_height)
+        scale = self.max_res / long_side if long_side > self.max_res else None
+
         faces = []
         for _ in range(self.num_repeats):
             start = random.randint(0, total_frames - self.chunk_size)
@@ -154,6 +161,8 @@ class VideoDataset(BaseDataset):
                     continue
                 
                 frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                if scale:
+                    frame = cv2.resize(frame, (int(video_width * scale), int(video_height * scale)))
                 frames.append(frame)
                 
                 if ind in check_indices:
@@ -185,13 +194,6 @@ class VideoDataset(BaseDataset):
         Args:
             frame (np.nparray): frame in numpy format (H, W, C)
         """
-        # lower image resolution if it's to high,
-        # since YuNet can't find faces on high resolutions
-        long_side = max(frame.shape[:2])
-        if long_side > self.max_res:
-            scale = self.max_res / long_side
-            frame = cv2.resize(frame, (int(frame.shape[1] * scale), int(frame.shape[0] * scale)))
-
         # set up detector and detect faces
         height, width = frame.shape[:2]
         self.detector.setInputSize((width, height))

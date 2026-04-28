@@ -3,9 +3,6 @@ import logging
 import torch
 import torch.nn as nn
 
-import numpy as np
-from sklearn.metrics import f1_score, roc_auc_score
-
 from omegaconf import DictConfig
 from tqdm import tqdm
 
