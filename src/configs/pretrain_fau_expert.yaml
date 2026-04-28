@@ -21,6 +21,7 @@ lr_scheduler:
 criterion:
   _target_: src.loss.cross_entropy.CrossEntropyLoss
   train_dataset: ${dataset.train}
+  label_smoothing: 0.1
   name: "cross_entropy"
 
 trainer:
