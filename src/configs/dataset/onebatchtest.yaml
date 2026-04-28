@@ -1,0 +1,15 @@
+train:
+  _target_: src.dataset.VideoDataset
+  data_dir: "data/FaceForensics"
+  part: "train"
+  limit: 32
+  instance_transforms: ${transforms.instance_transforms}
+  augmentations: ${transforms.augmentations}
+  shuffle_index: True
+
+val:
+  _target_: src.dataset.VideoDataset
+  data_dir: "data/FaceForensics"
+  part: "val"
+  limit: 32
+  instance_transforms: ${transforms.instance_transforms}
