@@ -1,5 +1,8 @@
 import torch
+import numpy as np
+
 from PIL import Image
+from pathlib import Path
 
 from src.dataset import BaseDataset
 from src.utils.io import ROOT_PATH, write_json, read_json
@@ -37,16 +40,13 @@ class ImageDataset(BaseDataset):
         print(f"Creating {self.part} index")
 
         # fake videos
-        for fake_type in (self.data_dir / "manipulated_sequences").iterdir():
+        for fake_type in (self.data_dir / "fake").iterdir():
             fake_videos = []
-            for fake_dir in (self.data_dir / f"manipulated_sequences/{fake_type.stem}/c23/videos").iterdir():
-                fake_videos.append([
-                    {
-                        "frame_path": str(frame_path),
-                        "depth_path": str(frame_path).replace("videos", "depth"),
-                        "target": 1
-                    } for frame_path in fake_dir.iterdir()
-                ])
+            for frames_path in fake_type.iterdir():
+                fake_videos.append({
+                    "frames_path": str(frames_path),
+                    "target": 1
+                })
         
             val_size = int(len(fake_videos) * self.val_size)
             if self.part == "train":
@@ -56,14 +56,11 @@ class ImageDataset(BaseDataset):
 
         # real videos
         real_videos = []
-        for real_dir in (self.data_dir / "original_sequences/youtube/c23/videos").iterdir():
-            real_videos.append([
-                {
-                    "frame_path": str(frame_path),
-                    "depth_path": str(frame_path).replace("videos", "depth"),
-                    "target": 0
-                } for frame_path in real_dir.iterdir()
-            ])
+        for frames_path in (self.data_dir / "real").iterdir():
+            real_videos.append({
+                "frames_path": str(frames_path),
+                "target": 0
+            })
         
         val_size = int(len(real_videos) * self.val_size)
         if self.part == "train":
@@ -71,27 +68,17 @@ class ImageDataset(BaseDataset):
         else:
             index.extend(real_videos[-val_size:])
 
-        temp = []
-        for video in index:
-            temp.extend(video)
-        index = temp
-
         return index
     
     def __getitem__(self, idx):
-        instance_data = self._index[idx]
-        instance_data["rgb"] = Image.open(instance_data["frame_path"])
-        instance_data["depth"] = Image.open(instance_data["depth_path"])
+        instance_data = dict(self._index[idx])
+        instance_data["frames"] = np.stack([
+            Image.open(str(frame)) for frame in Path(instance_data["frames_path"]).iterdir()
+        ])
+        instance_data["target"] = torch.tensor(instance_data["target"])
 
         instance_data = self.apply_instance_transforms(instance_data)
-        instance_data["rgbd"] = torch.concat(
-            (instance_data["rgb"], instance_data["depth"][0].unsqueeze(0)), dim=0
-        )
-
         instance_data = self.apply_augmentations(instance_data)
-        return {
-            "frame_path": instance_data["frame_path"],
-            "depth_path": instance_data["depth_path"],
-            "frame": instance_data["rgbd"],
-            "target": torch.tensor(instance_data["target"])
-        }
+
+        return instance_data
+  
