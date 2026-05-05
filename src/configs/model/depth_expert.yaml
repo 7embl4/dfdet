@@ -1,1 +1,7 @@
-_target_: src.model.model.DepthFake
+_target_: src.model.DepthExpert
+depth_encoder: "vits"
+hidden_dim: 128
+n_heads: 4
+n_transformer_layers: 2
+dropout: 0.1
+num_classes: 2
