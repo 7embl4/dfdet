@@ -11,3 +11,10 @@ val:
   data_dir: ["data/FaceForensics", "data/CelebDF"]
   part: "val"
   instance_transforms: ${transforms.instance_transforms}
+
+test:
+  _target_: src.dataset.VideoDataset
+  data_dir: "data/hwei_part1"
+  part: "val"
+  val_size: 1.0
+  instance_transforms: ${transforms.instance_transforms}
