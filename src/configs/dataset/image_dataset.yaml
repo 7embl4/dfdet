@@ -1,0 +1,20 @@
+train:
+  _target_: src.dataset.ImageDataset
+  data_dir: ["data/FaceForensics_faces", "data/CelebDF_faces"]
+  part: "train"
+  shuffle_index: True
+  instance_transforms: ${transforms.instance_transforms}
+  augmentations: ${transforms.augmentations}
+
+val:
+  _target_: src.dataset.ImageDataset
+  data_dir: ["data/FaceForensics_faces", "data/CelebDF_faces"]
+  part: "val"
+  instance_transforms: ${transforms.instance_transforms}
+
+test:
+  _target_: src.dataset.ImageDataset
+  data_dir: "data/hwei_part1_faces"
+  part: "val"
+  val_size: 1.0
+  instance_transforms: ${transforms.instance_transforms}

@@ -4,14 +4,18 @@ import torch
 import torch.nn as nn
 
 
-class RGBModel(nn.Module):
+class BaselineModel(nn.Module):
     def __init__(self, num_classes: int = 2, backbone: str = "resnet"):
         super().__init__()
         self.num_classes = num_classes
         self.backbone = self._init_backbone(backbone)
 
-    def forward(self, frame: torch.Tensor, **batch):
-        output = self.backbone(frame)
+    def forward(self, frames: torch.Tensor, **batch):
+        """
+        Args:
+            frames (torch.Tensor): tensor of frames with size [B, C, H, W]
+        """
+        output = self.backbone(frames)
         return {
             "pred": output
         }

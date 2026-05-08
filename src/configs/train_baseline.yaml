@@ -1,7 +1,7 @@
 defaults:
-  - model: fau_expert
+  - model: baseline
   - metrics: default
-  - dataset: video_dataset
+  - dataset: image_dataset
   - dataloader: default
   - transforms: default
   - _self_
@@ -27,11 +27,11 @@ criterion:
 trainer:
   # training process
   strategy: "epochs"  # either epochs or steps
-  n_epochs: 50
+  n_epochs: 30
   epoch_len: null  # max steps in epoch (if `null`, do all steps in each epoch)
   n_steps: null
   eval_steps: null
-  save_period: 5  # depends on strategy
+  save_period: 10  # depends on strategy
   device_tensors: ["frames", "target"]
   clear_cache: False
   resume_from: null
@@ -39,12 +39,12 @@ trainer:
   # early stopping
   early_stopping: True
   value_name: "val_f1"  # name of a loss or a metric to track (part_name)
-  patience: 15
+  patience: 10
   mode: "max"  # min/max of a value
   
   # saving
   save_dir: "saved"
 
 logging:
-  run_name: "fau_expert_pretrain"
+  run_name: "train_baseline"
   config_path: "logger/logger_config.json"
