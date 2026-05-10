@@ -1,6 +1,6 @@
 import torch
 import numpy as np
-from sklearn.metrics import f1_score
+from sklearn.metrics import f1_score, roc_curve
 
 from src.metrics import BaseMetric
 
@@ -16,7 +16,11 @@ class F1(BaseMetric):
         self.all_targets.extend(target.detach().cpu().numpy())
 
     def avg(self):
-        all_preds = (np.array(self.all_probs) > 0.5).astype(int)
+        fpr, tpr, treshholds = roc_curve(self.all_targets, self.all_probs)
+        optimal_idx = np.argmax(tpr - fpr)
+        optimal_th = treshholds[optimal_idx]
+        print(f"    Optimal th: {optimal_th}")
+        all_preds = (np.array(self.all_probs) > optimal_th).astype(int)
         return f1_score(self.all_targets, all_preds)
 
     def reset(self):

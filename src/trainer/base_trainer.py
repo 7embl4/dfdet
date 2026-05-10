@@ -113,7 +113,15 @@ class BaseTrainer:
                 logs.update({f"train_{self.criterion.name}": self.criterion.avg()})
                 self._reset_metrics(self.train_metrics)
                 
-                logs.update(self._evaluate(step, self.total_steps))
+                logs.update(self._evaluate())
+                
+                if self.lr_scheduler:
+                    logs.update({"lr": self.lr_scheduler.get_last_lr()[0]})
+
+                if self.strategy == "epochs":
+                    logs.update({"epoch": (step + 1) / self.epoch_len})
+                else:
+                    logs.update({"step": step + 1})
 
                 # TODO: make better output
                 for key, value in logs.items():
@@ -132,7 +140,7 @@ class BaseTrainer:
                 if early_stop:
                     break
     
-    def _evaluate(self, step: int, total_steps: int):
+    def _evaluate(self):
         self.is_train = False
         self.model.eval()
 
@@ -144,11 +152,6 @@ class BaseTrainer:
 
         self.model.train()
         self.is_train = True
-
-        if self.strategy == "epoch":
-            eval_logs.update({"epoch": total_steps / (step + 1)})
-        else:
-            eval_logs.update({"step": step + 1})
 
         return eval_logs
 

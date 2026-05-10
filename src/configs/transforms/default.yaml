@@ -20,3 +20,10 @@ augmentations:
         p: 0.5
       - _target_: torchvision.transforms.v2.RandomRotation
         degrees: 15
+      # - _target_: torchvision.transforms.v2.JPEG
+      #   quality: [50, 95]
+      # - _target_: torchvision.transforms.v2.ColorJitter
+      #   brightness: 0.05
+      #   contrast: 0.05
+      #   saturation: 0.05
+      #   hue: 0.05

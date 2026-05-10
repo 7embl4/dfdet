@@ -136,6 +136,8 @@ class VideoDataset(BaseDataset):
             indices.extend(current_chunk[:-self.chunk_size + 1])
 
         # set capture
+        if self.part != "train":
+            random.seed(0)
         bboxes = {ind: bbox for ind, bbox in zip(bboxes[:, 0], bboxes[:, 1:])}
         start = random.choice(indices)
         cap.set(cv2.CAP_PROP_POS_FRAMES, start)

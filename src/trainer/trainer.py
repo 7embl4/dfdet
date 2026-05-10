@@ -1,3 +1,5 @@
+import torch
+
 from src.trainer import BaseTrainer
 
 
@@ -15,6 +17,10 @@ class Trainer(BaseTrainer):
         if self.is_train:
             loss.backward()
             self.optimizer.step()
+        
+            if self.lr_scheduler:
+                self.lr_scheduler.step()
+            self._clip_grad_norm()
 
         for metric in metrics:
             metric(**batch)
