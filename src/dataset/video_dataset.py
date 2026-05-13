@@ -63,12 +63,13 @@ class VideoDataset(BaseDataset):
         for fake_type in (data_dir / "fake").iterdir():
             fake_videos = []
             for video_path in (fake_type / "videos").iterdir():
-                face_path = str(video_path).replace("videos", "faces").replace(video_path.suffix, ".npz")
-                fake_videos.append({
-                    "video_path": str(video_path),
-                    "face_path": face_path,
-                    "target": 1
-                })
+                if str(video_path).endswith(self.formats):
+                    face_path = str(video_path).replace("videos", "faces").replace(video_path.suffix, ".npz")
+                    fake_videos.append({
+                        "video_path": str(video_path),
+                        "face_path": face_path,
+                        "target": 1
+                    })
         
             val_size = int(len(fake_videos) * self.val_size)
             if self.part == "train":
@@ -80,12 +81,13 @@ class VideoDataset(BaseDataset):
         for real_type in (data_dir / "real").iterdir():
             real_videos = []
             for video_path in (real_type / "videos").iterdir():
-                face_path = str(video_path).replace("videos", "faces").replace(video_path.suffix, ".npz")
-                real_videos.append({
-                    "video_path": str(video_path),
-                    "face_path": face_path,
-                    "target": 0
-                })
+                if str(video_path).endswith(self.formats):
+                    face_path = str(video_path).replace("videos", "faces").replace(video_path.suffix, ".npz")
+                    real_videos.append({
+                        "video_path": str(video_path),
+                        "face_path": face_path,
+                        "target": 0
+                    })
         
             val_size = int(len(real_videos) * self.val_size)
             if self.part == "train":
