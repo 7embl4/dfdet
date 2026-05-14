@@ -45,14 +45,21 @@ class ImageDataset(BaseDataset):
 
         # fake videos
         for fake_type in (data_dir / "fake").iterdir():
+            if not fake_type.is_dir():
+                continue
+
             fake_videos = []
             for frames_path in fake_type.iterdir():
+                if not frames_path.is_dir():
+                    continue
+    
                 fake_videos.extend([
                     {
-                    "frame_path": str(frame_path),
-                    "target": 1
+                        "frame_path": str(frame_path),
+                        "target": 1
                     }
                     for frame_path in frames_path.iterdir()
+                    if str(frame_path).endswith(self.formats)
                 ])
         
             val_size = int(len(fake_videos) * self.val_size)
@@ -63,14 +70,21 @@ class ImageDataset(BaseDataset):
 
         # real videos
         for real_type in (data_dir / "real").iterdir():
+            if not real_type.is_dir():
+                continue
+
             real_videos = []
             for frames_path in real_type.iterdir():
+                if not frames_path.is_dir():
+                    continue
+    
                 real_videos.extend([
                     {
-                    "frame_path": str(frame_path),
-                    "target": 0
+                        "frame_path": str(frame_path),
+                        "target": 0
                     }
                     for frame_path in frames_path.iterdir()
+                    if str(frame_path).endswith(self.formats)
                 ])
         
             val_size = int(len(real_videos) * self.val_size)

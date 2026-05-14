@@ -1,7 +1,8 @@
 _target_: src.model.DepthExpert
-depth_encoder: "vits"
+depth_estimator: "vits"
+rgb_backbone: "vit_large_patch14_224"
 hidden_dim: 128
-n_heads: 4
-n_transformer_layers: 2
-dropout: 0.1
+num_heads: 4
+fusion_dropout: 0.1
+cls_dropout: 0.3
 num_classes: 2

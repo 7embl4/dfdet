@@ -126,6 +126,14 @@ class DepthExpert(nn.Module):
         b_features: torch.Tensor,
         mode: str = "nearest"
     ):
+        """
+        Interpolate to same number of embeddings
+
+        Args:
+            a_features (torch.Tensor): tensor of features
+            b_features (torch.Tensor): tensor of features
+            mode (str): interpolation mode
+        """
         target_dim = min(a_features.shape[1], b_features.shape[1])
         if a_features.shape[1] != target_dim:
             a_features = a_features.permute(0, 2, 1)
@@ -148,6 +156,12 @@ class DepthExpert(nn.Module):
         return a_features, b_features 
 
     def _get_rgb_dim(self, rgb_backbone: str):
+        """
+        Get dimension size of a RGB backbone
+
+        Args:
+            rgb_backbone (str): name of a RGB backbone
+        """
         num_features = None
         if "vit" in rgb_backbone:
             num_features = self.rgb_backbone.norm.normalized_shape[0]
