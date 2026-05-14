@@ -1,5 +1,10 @@
-# python files
+# python and vscode files
 __pycache__/
+.vscode/
+
+# macOS
+.DS_Store
+**/.DS_Store
 
 # input data
 data/
@@ -11,6 +16,7 @@ saved/
 
 # models
 models/
+depth_model/
 
 # test files
 test.py

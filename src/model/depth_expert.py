@@ -1,10 +1,15 @@
+import timm
 import torch
 import torch.nn as nn
 
-from depth_anything_v2.dpt import DepthAnythingV2
+from depth_model.depth_anything_v2.dpt import DepthAnythingV2
 
 
 class DepthExpert(nn.Module):
+    """
+    Depth Expert based on https://arxiv.org/pdf/2411.18572
+    TL;DR: Attention between rgb and depth features
+    """
     depth_estimator_configs = {
         "vits": {"encoder": "vits", "features": 64, "out_channels": [48, 96, 192, 384]},
         "vitb": {"encoder": "vitb", "features": 128, "out_channels": [96, 192, 384, 768]},
@@ -13,104 +18,195 @@ class DepthExpert(nn.Module):
     }
 
     def __init__(
-        self, 
-        depth_encoder="vits",
+        self,
+        # encoders
+        depth_estimator="vits",
+        rgb_backbone="vit_base_patch16_224",
+        
+        # model params
         hidden_dim=128,
-        n_heads=4,
-        n_transformer_layers=2,
-        dropout=0.1,
-        num_classes=2
+        num_heads=4,
+        fusion_dropout=0.1,
+        
+        # classifier
+        cls_dropout=0.3,
+        num_classes=2,
+
+        # other
+        *args,
+        **kwargs
     ):
-        super().__init__()
-        self.depth_estimator = DepthAnythingV2(**self.depth_estimator_configs[depth_encoder]).pretrained
+        super().__init__(*args, **kwargs)
+        
+        # depth extimator
+        self.depth_estimator = DepthAnythingV2(**self.depth_estimator_configs[depth_estimator]).pretrained
+
+        # rgb backbone
+        self.rgb_backbone = timm.create_model(rgb_backbone, pretrained=False)
+        self.outputs = {} 
+        self._register_hooks(["norm"])
         self._disable_grad()
 
-        # hidden space projection
-        latent_dim = self.depth_estimator.embed_dim
-        self.patch_proj = nn.Sequential(
-            nn.Linear(latent_dim, hidden_dim),
-            nn.LayerNorm(hidden_dim),
-            nn.GELU(),
+        # projection of rgb encoder space
+        # and depth estimator space to hidden space
+        depth_dim = self.depth_estimator.embed_dim
+        rgb_dim = self._get_rgb_dim(rgb_backbone)
+        self.rgb_proj = self._build_projection_layer(rgb_dim, hidden_dim)
+        self.depth_proj = self._build_projection_layer(depth_dim, hidden_dim)
+
+        # spatial fusion 
+        self.spatial_fusion = nn.MultiheadAttention(
+            hidden_dim, 
+            num_heads=num_heads,
+            dropout=fusion_dropout,
+            batch_first=True
         )
-        
-        # patch aggregation: mean + learnable weights
-        self.patch_aggregator = nn.Linear(hidden_dim, hidden_dim)
-        
-        # temporal transformer
-        encoder_layer = nn.TransformerEncoderLayer(
-            d_model=hidden_dim,
-            nhead=n_heads,
-            dim_feedforward=hidden_dim * 2,
-            dropout=dropout,
-            batch_first=True,
-            norm_first=True,
-        )
-        self.temporal_transformer = nn.TransformerEncoder(
-            encoder_layer,
-            num_layers=n_transformer_layers,
-            enable_nested_tensor=False
-        )
-        
-        # classifier head
-        hidden_dim = 3 * hidden_dim  # vel + acc + jerk
-        self.classifier = nn.Sequential(
+        self.fusion_mlp = nn.Sequential(
             nn.Linear(hidden_dim, hidden_dim // 2),
             nn.GELU(),
-            nn.Dropout(dropout),
+            nn.Linear(hidden_dim // 2, hidden_dim)
+        )
+
+        # patch agregation
+        self.patch_attention = nn.Linear(hidden_dim, 1)
+        
+        # classifier head
+        self.classifier = nn.Sequential(
+            nn.LayerNorm(hidden_dim),
+            nn.Linear(hidden_dim, hidden_dim // 2),
+            nn.GELU(),
+            nn.Dropout(cls_dropout),
+
+            nn.LayerNorm(hidden_dim // 2),
             nn.Linear(hidden_dim // 2, hidden_dim // 4),
             nn.GELU(),
-            nn.Dropout(dropout),
+            nn.Dropout(cls_dropout),
+
             nn.Linear(hidden_dim // 4, num_classes),
         )
 
     def forward(self, frames: torch.Tensor, **batch):
         """
         Args:
-            frames (torch.Tensor): tensor of frames with size [B, T, C, H, W]
+            frames (torch.Tensor): tensor of frames with size [B, C, H, W]
         """
-        B, T, C, H, W = frames.shape
-        
-        # extract depth latents
-        frames = frames.reshape(B * T, C, H, W)
-        latents = self._get_depth_latents(frames)  # [B*T, N, D]
-        latents = latents.reshape(B, T, *latents.shape[1:])  # [B, T, N, D]
+        self.rgb_backbone.eval()
+        self.depth_estimator.eval()
 
+        # extract depth features and rgb features
+        depth_features = self._get_depth_features(frames)  # [B, N, depth_D]
+        rgb_features = self._get_rgb_features(frames)  # [B, N, rgb_D]
+        if depth_features.shape[1] != rgb_features.shape[1]:
+            depth_features, rgb_features = self._interpolate_features(depth_features, rgb_features)
+        
         # patch projection 
-        latents = self.patch_proj(latents)  # [B, T, N, H]
+        depth_features = self.depth_proj(depth_features)  # [B, N, H]
+        rgb_features = self.rgb_proj(rgb_features)  # [B, N, H]
+   
+        # spatial fusion
+        fused_features = rgb_features + self.spatial_fusion(
+            query=depth_features,
+            key=rgb_features,
+            value=rgb_features
+        )[0]
+        fused_features = rgb_features + self.fusion_mlp(fused_features)  # [B, N, H]
+
+        # patch agregation
+        weights = torch.softmax(self.patch_attention(fused_features), dim=1)
+        fused_features = torch.sum(weights * fused_features, dim=1)
+
+        # classifier
+        out = self.classifier(fused_features)
+
+        return {"pred": out}
+
+    def _interpolate_features(
+        self, 
+        a_features: torch.Tensor, 
+        b_features: torch.Tensor,
+        mode: str = "nearest"
+    ):
+        target_dim = min(a_features.shape[1], b_features.shape[1])
+        if a_features.shape[1] != target_dim:
+            a_features = a_features.permute(0, 2, 1)
+            a_features = nn.functional.interpolate(
+                a_features, 
+                size=target_dim,
+                mode=mode
+            )
+            a_features = a_features.permute(0, 2, 1)
+
+        if b_features.shape[1] != target_dim:
+            b_features = b_features.permute(0, 2, 1)
+            b_features = nn.functional.interpolate(
+                b_features, 
+                size=target_dim,
+                mode=mode
+            )
+            b_features = b_features.permute(0, 2, 1)
+
+        return a_features, b_features 
+
+    def _get_rgb_dim(self, rgb_backbone: str):
+        num_features = None
+        if "vit" in rgb_backbone:
+            num_features = self.rgb_backbone.norm.normalized_shape[0]
+        else:
+            raise NotImplementedError(f"Unknown backbone {rgb_backbone}")
+
+        return num_features
+
+    def _get_hook_fn(self, name: str):
+        """
+        Get hook for a module
+
+        Args: 
+            name (str): name of a module to hook
+        """
+        def hook_fn(model, input, output):
+            self.outputs[name] = input
+        return hook_fn
+
+    def _register_hooks(self, names: list[str]):
+        """
+        Hooks registration for rgb_backbone
         
-        # aggregate patches 
-        latents = self.patch_aggregator(
-            latents.mean(dim=2)
-        )  # [B, T, H]
-        
-        # get temporal dynamics
-        vel, acc, jerk = self._get_temporal_dynamics(latents)
-        
-        # temporal transformer 
-        min_T = jerk.shape[1]
-        vel  = vel[:, :min_T]
-        acc  = acc[:, :min_T]
-        jerk = jerk[:, :min_T]
-        
-        vel_enc  = self.temporal_transformer(vel)  # [B, T-3, H]
-        acc_enc  = self.temporal_transformer(acc)  # [B, T-3, H]
-        jerk_enc = self.temporal_transformer(jerk) # [B, T-3, H]
-        
-        # temporal aggregation
-        vel_vec  = self._aggregate_sequence(vel_enc)  # [B, H]
-        acc_vec  = self._aggregate_sequence(acc_enc)  # [B, H]
-        jerk_vec = self._aggregate_sequence(jerk_enc) # [B, H]
-        
-        # classification
-        combined = torch.cat([vel_vec, acc_vec, jerk_vec], dim=-1)  # [B, 3*H]
-        logits = self.classifier(combined)
-        
-        return {"pred": logits}
+        Args:
+            names (list[str]): list of module names
+        """
+        target_modules = {}
+        for name, module in self.rgb_backbone.named_modules():
+            if name in names:
+                target_modules[name] = module
+
+        for name, module in target_modules.items():
+            module.register_forward_hook(self._get_hook_fn(name))
+
+    def _build_projection_layer(self, source_dim: int, target_dim: int):
+        """
+        Building a projection layer with norms and activations
+
+        Args: 
+            source_dim (int): num of dims of a source space
+            target_dim (int): num of dims of a target space
+        """
+        return nn.Sequential(
+            nn.LayerNorm(source_dim),
+            nn.Linear(source_dim, source_dim // 2),
+            nn.GELU(),
+
+            nn.LayerNorm(source_dim // 2),
+            nn.Linear(source_dim // 2, source_dim // 4),
+            nn.GELU(),
+
+            nn.LayerNorm(source_dim // 4),
+            nn.Linear(source_dim // 4, target_dim)
+        )
 
     @torch.no_grad()
-    def _get_depth_latents(self, frames: torch.Tensor):
+    def _get_depth_features(self, frames: torch.Tensor):
         """
-        Get latents from depth extimator
+        Get features from depth extimator
 
         Args:
             frames (torch.Tensor): tensor of frames with size [B, C, H, W]
@@ -118,31 +214,23 @@ class DepthExpert(nn.Module):
         latent = self.depth_estimator.forward_features(frames)
         return latent["x_norm_patchtokens"]
 
-    def _get_temporal_dynamics(self, frames: torch.Tensor):
+    @torch.no_grad()
+    def _get_rgb_features(self, frames: torch.Tensor):
         """
-        Calculates velocity, acceleration and jerk of frames
+        Get features from rgb backbone
 
         Args:
-            frames (torch.Tensor): temporal features of size [B, T, H]
+            frames (torch.Tensor): tensor of frames with size [B, C, H, W]
         """
-        vel = frames[:, 1:] - frames[:, :-1]  # [B, T-1, H]
-        acc = vel[:, 1:] - vel[:, :-1]  # [B, T-2, H]
-        jerk = acc[:, 1:] - acc[:, :-1]  # [B, T-3, H]
-        
-        return vel, acc, jerk
-
-    def _aggregate_sequence(self, x: torch.Tensor):
-        """
-        Temporal sequence aggregation
-        
-        Args:
-            x (torch.Tensor): tensor of size [B, T, H]
-        """
-        return x.mean(dim=1)
+        self.rgb_backbone(frames)
+        return self.outputs["norm"][0][:, 1:, :]
 
     def _disable_grad(self):
         """
-        Disable gradients of depth estimator
+        Disable gradients of backbone models
         """
         for p in self.depth_estimator.parameters():
+            p.requires_grad = False
+
+        for p in self.rgb_backbone.parameters():
             p.requires_grad = False
