@@ -1,6 +1,6 @@
 train:
   _target_: src.dataset.ImageDataset
-  data_dir: "data/CelebDF_faces"
+  data_dir: "data/VCDF_faces"
   part: "train"
   val_size: 0.2
   shuffle_index: True
@@ -9,7 +9,7 @@ train:
 
 val:
   _target_: src.dataset.ImageDataset
-  data_dir: "data/CelebDF_faces"
+  data_dir: "data/VCDF_faces"
   part: "val"
   val_size: 0.2
   instance_transforms: ${transforms.instance_transforms}

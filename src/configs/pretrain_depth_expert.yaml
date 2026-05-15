@@ -16,7 +16,7 @@ optimizer:
 
 lr_scheduler:
   _target_: torch.optim.lr_scheduler.CosineAnnealingLR
-  T_max: 14450
+  T_max: 330840
   eta_min: 1e-6
 
 criterion:

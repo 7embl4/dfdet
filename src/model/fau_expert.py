@@ -12,7 +12,7 @@ class FAUExpert(nn.Module):
     """
     def __init__(
             self, 
-            # fau lstm
+            # fau
             input_features=12,
             hidden_size=64,
             num_layers=2,
@@ -34,10 +34,6 @@ class FAUExpert(nn.Module):
             *args, 
             **kwargs
         ):
-        """
-        Args:
-
-        """
         super().__init__(*args, **kwargs)
         # fau branch
         self.fau_detector = FAUDetector()
@@ -94,14 +90,13 @@ class FAUExpert(nn.Module):
         Args:
             frames (torch.Tensor): batch of videos with size [B, T, C, H, W]
         """
-        # get aus and embeddings
+        import time
         self.image_encoder.eval()
         self.fau_detector.eval()
-        with torch.no_grad():
-            aus = torch.stack([self.fau_detector(video) for video in frames])   # [B, T, D]
-            embeddings = torch.stack(
-                [self.image_encoder.encode_image(video) for video in frames]
-            ).float() # [B, T, D_enc]
+
+        # get aus and embeddings
+        aus = self._get_aus(frames)
+        embeddings = self._get_embeddings(frames)
 
         # lstm and projection
         aus = self.aus_norm(aus)
@@ -123,3 +118,16 @@ class FAUExpert(nn.Module):
         out = self.classifier(out)
 
         return {"pred": out}
+
+    @torch.no_grad()
+    def _get_aus(self, frames: torch.Tensor):
+        return torch.stack([self.fau_detector(video) for video in frames])
+
+    @torch.no_grad()
+    def _get_embeddings(self, frames: torch.Tensor):
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        with torch.autocast(device_type=device, dtype=torch.float16):
+            embeddings = torch.stack(
+                [self.image_encoder.encode_image(video) for video in frames]
+            )
+        return embeddings.float()

@@ -1,7 +1,7 @@
-import timm
 import torch
 import torch.nn as nn
 
+import clip
 from depth_model.depth_anything_v2.dpt import DepthAnythingV2
 
 
@@ -21,7 +21,7 @@ class DepthExpert(nn.Module):
         self,
         # encoders
         depth_estimator="vits",
-        rgb_backbone="vit_base_patch16_224",
+        rgb_backbone="ViT-L/14",
         
         # model params
         hidden_dim=128,
@@ -42,15 +42,15 @@ class DepthExpert(nn.Module):
         self.depth_estimator = DepthAnythingV2(**self.depth_estimator_configs[depth_estimator]).pretrained
 
         # rgb backbone
-        self.rgb_backbone = timm.create_model(rgb_backbone, pretrained=False)
+        self.rgb_backbone, _ = clip.load(rgb_backbone)
         self.outputs = {} 
-        self._register_hooks(["norm"])
+        self._register_hooks(["transformer"])
         self._disable_grad()
 
         # projection of rgb encoder space
         # and depth estimator space to hidden space
         depth_dim = self.depth_estimator.embed_dim
-        rgb_dim = self._get_rgb_dim(rgb_backbone)
+        rgb_dim = self.rgb_backbone.visual.conv1.out_channels
         self.rgb_proj = self._build_projection_layer(rgb_dim, hidden_dim)
         self.depth_proj = self._build_projection_layer(depth_dim, hidden_dim)
 
@@ -155,21 +155,6 @@ class DepthExpert(nn.Module):
 
         return a_features, b_features 
 
-    def _get_rgb_dim(self, rgb_backbone: str):
-        """
-        Get dimension size of a RGB backbone
-
-        Args:
-            rgb_backbone (str): name of a RGB backbone
-        """
-        num_features = None
-        if "vit" in rgb_backbone:
-            num_features = self.rgb_backbone.norm.normalized_shape[0]
-        else:
-            raise NotImplementedError(f"Unknown backbone {rgb_backbone}")
-
-        return num_features
-
     def _get_hook_fn(self, name: str):
         """
         Get hook for a module
@@ -178,7 +163,7 @@ class DepthExpert(nn.Module):
             name (str): name of a module to hook
         """
         def hook_fn(model, input, output):
-            self.outputs[name] = input
+            self.outputs[name] = output
         return hook_fn
 
     def _register_hooks(self, names: list[str]):
@@ -189,7 +174,7 @@ class DepthExpert(nn.Module):
             names (list[str]): list of module names
         """
         target_modules = {}
-        for name, module in self.rgb_backbone.named_modules():
+        for name, module in self.rgb_backbone.visual.named_modules():
             if name in names:
                 target_modules[name] = module
 
@@ -236,8 +221,10 @@ class DepthExpert(nn.Module):
         Args:
             frames (torch.Tensor): tensor of frames with size [B, C, H, W]
         """
-        self.rgb_backbone(frames)
-        return self.outputs["norm"][0][:, 1:, :]
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        with torch.autocast(device_type=device, dtype=torch.float16):
+            self.rgb_backbone.encode_image(frames)
+        return self.outputs["transformer"][1:, :, :].permute(1, 0, 2).float()
 
     def _disable_grad(self):
         """

@@ -16,7 +16,9 @@ saved/
 
 # models
 models/
+checkpoints/
 depth_model/
+fau_model/
 
 # test files
 test.py
