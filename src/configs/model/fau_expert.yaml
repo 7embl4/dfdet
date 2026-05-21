@@ -3,7 +3,7 @@ input_features: 12
 hidden_size: 64
 num_layers: 2
 bidirectional: True
-encoder_model: "ViT-B/32"
+encoder_model: "ViT-L/14"
 num_heads: 4
 fusion_dropout: 0.1
 cls_dropout: 0.3

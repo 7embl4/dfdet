@@ -1,5 +1,5 @@
 defaults:
-  - model: fau_expert
+  - model: fau_and_depth_model
   - metrics: default
   - dataset: video_dataset
   - dataloader: default
@@ -12,12 +12,12 @@ device: "auto"
 optimizer:
   _target_: torch.optim.AdamW
   betas: [0.9, 0.999]
-  lr: 1e-4
+  lr: 5e-6
 
 lr_scheduler:
   _target_: torch.optim.lr_scheduler.CosineAnnealingLR
   T_max: 17100
-  eta_min: 1e-6
+  eta_min: 1e-7
 
 criterion:
   _target_: src.loss.cross_entropy.CrossEntropyLoss
@@ -28,12 +28,12 @@ criterion:
 trainer:
   # training process
   strategy: "epochs"  # either epochs or steps
-  n_epochs: 50
+  n_epochs: 5
   epoch_len: null  # max steps in epoch (if `null`, do all steps in each epoch)
   n_steps: null
   eval_steps: null
   max_grad_norm: 1.0
-  save_period: 5  # depends on strategy
+  save_period: 1  # depends on strategy
   device_tensors: ["frames", "target"]
   clear_cache: False
   resume_from: null
@@ -48,5 +48,5 @@ trainer:
   save_dir: "saved"
 
 logging:
-  run_name: "fau_expert_pretrain"
+  run_name: "train_fau_and_depth"
   config_path: "logger/logger_config.json"

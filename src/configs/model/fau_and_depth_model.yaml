@@ -1,0 +1,4 @@
+_target_: src.model.FAUDepthModel
+backbone: "ViT-B/32"
+fau_path: "saved/fau_vcdf_B32/model_best.pth"
+depth_path: "saved/depth_vcdf_B32/model_best.pth"
