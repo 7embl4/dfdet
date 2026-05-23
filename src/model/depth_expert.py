@@ -85,17 +85,22 @@ class DepthExpert(nn.Module):
             nn.Linear(hidden_dim // 4, num_classes),
         )
 
-    def forward(self, frames: torch.Tensor, **batch):
+    def forward(self, frames: torch.Tensor, clip_embbedings=None, **batch):
         """
         Args:
             frames (torch.Tensor): tensor of frames with size [B, C, H, W]
         """
-        self.rgb_backbone.eval()
+        if self.rgb_backbone != None:
+            self.rgb_backbone.eval()
         self.depth_estimator.eval()
 
         # extract depth features and rgb features
         depth_features = self._get_depth_features(frames)  # [B, N, depth_D]
-        rgb_features = self._get_rgb_features(frames)  # [B, N, rgb_D]
+        if clip_embbedings != None:
+            rgb_features = clip_embbedings 
+        else:
+            rgb_features = self._get_rgb_features(frames)  # [B, N, rgb_D]
+            
         if depth_features.shape[1] != rgb_features.shape[1]:
             depth_features, rgb_features = self._interpolate_features(depth_features, rgb_features)
         

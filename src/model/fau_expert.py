@@ -85,18 +85,22 @@ class FAUExpert(nn.Module):
             nn.Linear(d_model // 4, num_classes),
         )
 
-    def forward(self, frames: torch.Tensor, **batch):
+    def forward(self, frames: torch.Tensor, clip_embbedings=None, **batch):
         """
         Args:
             frames (torch.Tensor): batch of videos with size [B, T, C, H, W]
         """
-        import time
-        self.image_encoder.eval()
+        if self.image_encoder != None:
+            self.image_encoder.eval()
         self.fau_detector.eval()
 
         # get aus and embeddings
         aus = self._get_aus(frames)
-        embeddings = self._get_embeddings(frames)
+        if clip_embbedings != None:
+            embeddings = clip_embbedings 
+        else:
+            embeddings = self._get_embeddings(frames)
+            
 
         # lstm and projection
         aus = self.aus_norm(aus)

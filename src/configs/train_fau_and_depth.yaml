@@ -17,7 +17,7 @@ optimizer:
 lr_scheduler:
   _target_: torch.optim.lr_scheduler.CosineAnnealingLR
   T_max: 17100
-  eta_min: 1e-7
+  eta_min: 5e-7
 
 criterion:
   _target_: src.loss.cross_entropy.CrossEntropyLoss
@@ -28,7 +28,7 @@ criterion:
 trainer:
   # training process
   strategy: "epochs"  # either epochs or steps
-  n_epochs: 5
+  n_epochs: 10
   epoch_len: null  # max steps in epoch (if `null`, do all steps in each epoch)
   n_steps: null
   eval_steps: null
