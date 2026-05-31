@@ -33,7 +33,7 @@ def parse_args():
     parser.add_argument(
         "--save_mistakes", 
         type=bool,
-        default=True,
+        default=False,
         action="store_true",
         help="Saving classification mistakes"
     )
