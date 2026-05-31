@@ -1,16 +1,44 @@
 import torch
 import torchvision.transforms.v2 as T
+
 import time
+from argparse import ArgumentParser
 from tqdm import tqdm
 
 from src.model import DepthExpert, FAUExpert
 from src.dataset import ImageDataset, VideoDataset
 from src.metrics import Accuracy, F1, AUC
 from src.utils.init import set_random_seed
+from src.utils.io import write_json
 
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 device_tensors = ["frames", "target"]
+
+
+def parse_args():
+    parser = ArgumentParser()
+    parser.add_argument(
+        "--data_path",
+        type=str,
+        help="Path to data"
+    )
+    parser.add_argument(
+        "--data_type", 
+        type=str,
+        default="video",
+        choices=["video", "image"],
+        help="Data type to validate"
+    )
+    parser.add_argument(
+        "--save_mistakes", 
+        type=bool,
+        default=True,
+        action="store_true",
+        help="Saving classification mistakes"
+    )
+
+    return parser.parse_args()
 
 
 def move_batch_to_device(batch: dict):
@@ -19,7 +47,7 @@ def move_batch_to_device(batch: dict):
     return batch
 
 
-def main():
+def main(args):
     set_random_seed(0)
 
     # dataset
@@ -34,8 +62,10 @@ def main():
             )
         ])
     }
-    dataset = VideoDataset(
-        data_dir="data/hwei_part1",
+
+    dataset_type = VideoDataset if args.data_type == "video" else ImageDataset
+    dataset = dataset_type(
+        data_dir=args.data_path,
         part="val",
         val_size=1.0,
         instance_transforms=instance_transforms
@@ -51,13 +81,17 @@ def main():
     metrics = [Accuracy(name="accuracy"), F1(name="f1"), AUC(name="auc")]
     
     # model
-    model = FAUExpert(encoder_model="ViT-L/14")
-    state_dict = torch.load("saved/fau_vcdf_L14/model_best.pth", map_location=device, weights_only=False)
+    model_type = FAUExpert if args.data_type == "video" else DepthExpert
+    model = model_type(encoder_model="ViT-L/14")
+    folder = "fau" if args.data_type == "video" else "depth"
+    state_dict = torch.load(f"saved/{folder}_vcdf_L14/model_best.pth", map_location=device, weights_only=False)
     model.load_state_dict(state_dict=state_dict["state_dict"])
     model.eval()
     model.to(device)
 
     # inference
+    total_time = 0
+    mistakes = []
     for batch in tqdm(dataloader, desc="test"):
         batch = move_batch_to_device(batch)
 
@@ -65,19 +99,30 @@ def main():
         with torch.no_grad():
             output = model(**batch)
         t2 = time.perf_counter()
-        print(t2 - t1)
+        total_time += t2 - t1
         batch.update(output)
 
-        if batch["target"][0].item() != torch.argmax(batch["pred"]).item():
-            print(batch["video_path"])
+        target = batch["target"][0].cpu().item()
+        pred = torch.argmax(batch["pred"]).cpu().item()
+        if pred != target:
+            type = "video" if args.data_type == "video" else "frame"
+            mistakes.append({
+                "path": batch[f"{type}_path"],
+                "pred": torch.argmax(batch["pred"]).item(),
+                "target": batch["target"][0].item(),
+            })
 
         for metric in metrics:
             metric(**batch)
 
     # print results
+    print(f"    test_{"avg_time":20s}: {total_time / len(dataloader)}")
     for metric in metrics:
         print(f"    test_{metric.name:20s}: {metric.avg()}")
 
+    if args.save_mistakes:
+        write_json(mistakes, "mistakes.json")
 
 if __name__ == "__main__":
-    main()
+    args = parse_args()
+    main(args)

@@ -14,9 +14,9 @@ val:
   val_size: 0.2
   instance_transforms: ${transforms.instance_transforms}
 
-# test:
-#   _target_: src.dataset.ImageDataset
-#   data_dir: "data/hwei_part1_faces"
-#   part: "val"
-#   val_size: 1.0
-#   instance_transforms: ${transforms.instance_transforms}
+test:
+  _target_: src.dataset.ImageDataset
+  data_dir: "data/hwei_part1_faces"
+  part: "val"
+  val_size: 1.0
+  instance_transforms: ${transforms.instance_transforms}

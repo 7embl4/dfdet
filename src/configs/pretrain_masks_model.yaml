@@ -1,0 +1,52 @@
+defaults:
+  - model: masks_model
+  - metrics: default
+  - dataset: image_dataset
+  - dataloader: default
+  - transforms: default
+  - _self_
+
+seed: 0
+device: "auto"
+
+optimizer:
+  _target_: torch.optim.AdamW
+  betas: [0.9, 0.999]
+  lr: 1e-4
+
+lr_scheduler:
+  _target_: torch.optim.lr_scheduler.CosineAnnealingLR
+  T_max: 330840
+  eta_min: 1e-6
+
+criterion:
+  _target_: src.loss.cross_entropy.CrossEntropyLoss
+  train_dataset: ${dataset.train}
+  label_smoothing: 0.05
+  name: "cross_entropy"
+
+trainer:
+  # training process
+  strategy: "epochs"  # either epochs or steps
+  n_epochs: 30
+  epoch_len: null  # max steps in epoch (if `null`, do all steps in each epoch)
+  n_steps: null
+  eval_steps: null
+  max_grad_norm: 1.0
+  save_period: 10  # depends on strategy
+  device_tensors: ["frames", "target"]
+  clear_cache: False
+  resume_from: null
+
+  # early stopping
+  early_stopping: True
+  value_name: "val_f1"  # name of a loss or a metric to track (part_name)
+  patience: 10
+  mode: "max"  # min/max of a value
+  
+  # saving
+  save_dir: "saved"
+
+logging:
+  run_name: "pretrain_masks_model"
+  config_path: "logger/logger_config.json"

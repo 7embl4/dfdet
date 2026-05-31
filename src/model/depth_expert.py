@@ -21,7 +21,7 @@ class DepthExpert(nn.Module):
         self,
         # encoders
         depth_estimator="vits",
-        rgb_backbone="ViT-L/14",
+        encoder_model="ViT-L/14",
         
         # model params
         hidden_dim=128,
@@ -42,7 +42,7 @@ class DepthExpert(nn.Module):
         self.depth_estimator = DepthAnythingV2(**self.depth_estimator_configs[depth_estimator]).pretrained
 
         # rgb backbone
-        self.rgb_backbone, _ = clip.load(rgb_backbone)
+        self.rgb_backbone, _ = clip.load(encoder_model)
         self.outputs = {} 
         self._register_hooks(["transformer"])
         self._disable_grad()

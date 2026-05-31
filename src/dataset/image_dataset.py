@@ -51,16 +51,21 @@ class ImageDataset(BaseDataset):
             fake_videos = []
             for frames_path in fake_type.iterdir():
                 if not frames_path.is_dir():
-                    continue
-    
-                fake_videos.extend([
-                    {
-                        "frame_path": str(frame_path),
-                        "target": 1
-                    }
-                    for frame_path in frames_path.iterdir()
-                    if str(frame_path).endswith(self.formats)
-                ])
+                    fake_videos.append(
+                        {
+                            "frame_path": str(frames_path),
+                            "target": 1
+                        }
+                    )
+                else:
+                    fake_videos.extend([
+                        {
+                            "frame_path": str(frame_path),
+                            "target": 1
+                        }
+                        for frame_path in frames_path.iterdir()
+                        if str(frame_path).endswith(self.formats)
+                    ])
         
             val_size = int(len(fake_videos) * self.val_size)
             if self.part == "train":
@@ -76,16 +81,21 @@ class ImageDataset(BaseDataset):
             real_videos = []
             for frames_path in real_type.iterdir():
                 if not frames_path.is_dir():
-                    continue
-    
-                real_videos.extend([
-                    {
-                        "frame_path": str(frame_path),
-                        "target": 0
-                    }
-                    for frame_path in frames_path.iterdir()
-                    if str(frame_path).endswith(self.formats)
-                ])
+                    real_videos.append(
+                        {
+                            "frame_path": str(frames_path),
+                            "target": 0
+                        }
+                    )    
+                else:    
+                    real_videos.extend([
+                        {
+                            "frame_path": str(frame_path),
+                            "target": 0
+                        }
+                        for frame_path in frames_path.iterdir()
+                        if str(frame_path).endswith(self.formats)
+                    ])
         
             val_size = int(len(real_videos) * self.val_size)
             if self.part == "train":

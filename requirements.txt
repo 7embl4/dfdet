@@ -8,6 +8,7 @@ scikit-learn
 openai-clip
 setuptools==72.1.0  # newer versions lead to issues since pkg_resources are depricated
 timm
+transformers
 
 # configs
 omegaconf

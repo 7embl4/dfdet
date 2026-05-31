@@ -1,0 +1,5 @@
+_target_: src.model.MasksModel
+num_seg_classes: 19
+config: "e"
+num_output_classes: 2
+pretrained: True

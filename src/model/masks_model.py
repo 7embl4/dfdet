@@ -174,7 +174,7 @@ class MGAMBlock_E(nn.Module):
         return resnet_out * attn + resnet_out
 
 
-class MGAMNET(nn.Module):
+class MasksModel(nn.Module):
     """
     MGAMNET: Mask-Guided Attention Network for Deepfake Detection.
 
@@ -290,48 +290,3 @@ class MGAMNET(nn.Module):
         pred = self.classifier(x)            # [B, num_output_classes]
 
         return {"pred": pred, "mask": mask}
-
-
-if __name__ == "__main__":
-    # Sanity check — config e, без загрузки face parser
-    B, H, W = 2, 224, 224
-    image = torch.randn(B, 3, H, W)
-    mask  = torch.randn(B, 19, H, W).softmax(dim=1)
-
-    # Тест только MGAM блоков без face parser
-    for cfg in ('a', 'b', 'c', 'd', 'e'):
-        resnet = models.resnet18(weights=None)
-        stem = nn.Sequential(resnet.conv1, resnet.bn1, resnet.relu, resnet.maxpool)
-
-        if cfg == 'a':
-            layers = [resnet.layer1, resnet.layer2, resnet.layer3, resnet.layer4]
-            x = stem(image)
-            for layer in layers:
-                x = layer(x)
-        else:
-            block_cls = MGAMNET._BLOCK_CLS[cfg]
-            ch_key = 'in_channels' if cfg in ('b', 'c', 'd') else 'out_channels'
-            channels = MGAMNET._IN_CHANNELS if cfg in ('b', 'c', 'd') else MGAMNET._OUT_CHANNELS
-            layers = [
-                block_cls(layer, **{ch_key: ch}, num_classes=19)
-                for layer, ch in zip(
-                    [resnet.layer1, resnet.layer2, resnet.layer3, resnet.layer4],
-                    channels
-                )
-            ]
-            x = stem(image)
-            for layer in layers:
-                x = layer(x, mask)
-
-        gap = nn.AdaptiveAvgPool2d(1)
-        clf = nn.Linear(512, 2)
-        out = clf(gap(x).flatten(1))
-        print(f"Config {cfg} | output: {out.shape}")
-
-    print("\nAll configs OK.")
-    print("\nFull model (with face parser) usage:")
-    print("  model = MGAMNET(config='e')")
-    print("  out = model(frames)  # frames: [B, 3, 224, 224]")
-    print("  pred = out['pred']   # [B, 2]")
-    print("  mask = out['mask']   # [B, 19, 224, 224] — для визуализации")
-
