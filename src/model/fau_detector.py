@@ -14,7 +14,7 @@ class FAUDetector(nn.Module):
 		cls_dim=512, 
         cls_reduction=4,
     	cls_dropout=0.1,
-        pretrained="models/resnet.pt"
+        pretrained="models/fau/resnet.pt"
 	):
         super().__init__()
         resnet18 = torchvision.models.resnet18(

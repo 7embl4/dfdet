@@ -1,6 +1,7 @@
 import torch
 import torchvision.transforms.v2 as T
 
+import os
 import time
 from argparse import ArgumentParser
 from tqdm import tqdm
@@ -32,8 +33,6 @@ def parse_args():
     )
     parser.add_argument(
         "--save_mistakes", 
-        type=bool,
-        default=False,
         action="store_true",
         help="Saving classification mistakes"
     )
@@ -84,7 +83,7 @@ def main(args):
     model_type = FAUExpert if args.data_type == "video" else DepthExpert
     model = model_type(encoder_model="ViT-L/14")
     folder = "fau" if args.data_type == "video" else "depth"
-    state_dict = torch.load(f"saved/{folder}_vcdf_L14/model_best.pth", map_location=device, weights_only=False)
+    state_dict = torch.load(f"models/{folder}/model_best.pth", map_location=device, weights_only=False)
     model.load_state_dict(state_dict=state_dict["state_dict"])
     model.eval()
     model.to(device)
@@ -116,12 +115,13 @@ def main(args):
             metric(**batch)
 
     # print results
-    print(f"    test_{"avg_time":20s}: {total_time / len(dataloader)}")
+    print(f"    test_{'avg_time':20s}: {total_time / len(dataloader)}")
     for metric in metrics:
         print(f"    test_{metric.name:20s}: {metric.avg()}")
 
     if args.save_mistakes:
-        write_json(mistakes, "mistakes.json")
+        os.makedirs("saved", exist_ok=True)
+        write_json(mistakes, "saved/mistakes.json")
 
 if __name__ == "__main__":
     args = parse_args()

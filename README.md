@@ -15,21 +15,89 @@
 This repository contains practical results of my Final Qualifying Work on topic «Synthetic Video Recognition Based on Facial Micro-expression Analysis for Online Conferences». In general there are 2 models: **FAUModel** for video analysis based on Facial Action Units and **DepthModel** for image analysis based on Depth Estimation.
 
 ## Installation
-
+Clone repo and create environment:
 ```bash
 git clone https://github.com/7embl4/dfdet.git
 cd dfdet
 conda create --name dfdet python=3.10
-python -m pip install -r requirements.txt
 ```
 
-This installation is CPU only. For GPU support install `torch` and `torchvision` separately:
+For GPU support install `torch` and `torchvision` separately:
 ```bash
 python -m pip install torch==2.6.0 torchvision==0.21.0 --index-url https://download.pytorch.org/whl/cu126
 ```
 
-## Pretrained Models
-For now pretrained models aren't available, since the project is still on go. But you can train models by yourself following the steps below.
+Install other dependencies:
+```bash
+python -m pip install -r requirements.txt
+```
+
+Also the [Depth-Anything-V2](https://github.com/DepthAnything/Depth-Anything-V2.git) is necessary:
+```bash
+git clone https://github.com/DepthAnything/Depth-Anything-V2.git depth_model
+```
+
+## Models
+Load models from [here](https://drive.google.com/drive/folders/1AHUIwPd3cJ00vFt58Q8fKbcVr0924qG9?usp=drive_link) 
+and put them in `models` folder in root directory in the following format:
+```bash
+models
+└── fau
+  ├── model_best.pth
+  ├── resnet.pt
+└── depth
+  ├── model_best.pth
+└── face_detection_yunet_2023mar.onnx
+```
+
+## Data Preprocessing
+For both training and inferencing there is specific data structure (more about structure in `preprocess_data.py`).
+You can obtain such structure using `preprocess_data.py` script. Only thing, that your data should be in the following format:
+```bash
+DataDirectory
+└── real
+  ├── video1.mp4
+  ├── video2.mp4
+  ├── ...
+└── fake
+  ├── video1.mp4
+  ├── video2.mp4
+  ├── ...
+```
+
+or in case of different types of real and fake videos
+
+```bash
+DataDirectory
+└── real
+  └── real_type1
+    ├── video1.mp4
+    ├── video2.mp4
+    ├── ...
+  └── real_type2
+    ├── video1.mp4
+    ├── video2.mp4
+    ├── ...
+  ...
+└── fake
+  └── fake_type1
+    ├── video1.ext
+    ├── video2.ext
+    ├── ...
+  └── fake_type2
+    ├── video1.ext
+    ├── video2.ext
+    ├── ...
+  ...
+```
+
+When your data in such format just run script:
+```bash
+python preprocess_data.py --data_path DataDirectory
+```
+
+Note, that the preprocessing may take some time for video, since there is face detecting. 
+Duration depends on CPU (for example, it's less than one second for a video on Ryzen 5 5600).
 
 ## Training
 To train a model with basic parameters run the following command:
@@ -51,7 +119,7 @@ For more parameters check corresponding config in `src/configs` folder.
 
 ## Inference
 
-After training you may run inference on your data:
+You may run inference on your data:
 ```bash
 python synthesize.py 
   --data_path {path_to_dataset}
@@ -60,65 +128,6 @@ python synthesize.py
 ```
 
 `save_mistakes` will save classification mistakes in `mistakes.json` (disabled by default).
-
-## Data Stucture
-Note that there is specific data structure for both training and inferencing. Image dataset must be in the following format, where `ext` is *jpg*, *jpeg* or *png*:
-```bash
-ImageDatasetDirectory
-└── real
-    └── real_type1
-        ├── image1.ext
-        ├── image2.ext
-        ├── ...
-    ...
-└── fake
-    └── fake_type1
-        ├── image1.ext
-        ├── image2.ext
-        ├── ...
-    ...
-```
-
-For video dataset the structure is:
-```bash
-VideoDatasetDirectory
-└── real
-    └── real_type1
-        └── faces
-          ├── face1.npz
-          ├── face2.npz
-          ├── ...
-        └── videos
-          ├── video1.ext
-          ├── video2.ext
-          ├── ...
-        ...
-    ...
-└── fake
-    └── fake_type1
-        └── faces
-          ├── face1.npz
-          ├── face2.npz
-          ├── ...
-        └── videos
-          ├── video1.ext
-          ├── video2.ext
-          ├── ...
-        ...
-    ...
-```
-
-Where `ext` is *mp4*, *avi*, *mov* or *mpeg*. And `face.npz` is a file with face coordinates for video of format:
-```bash
-[
-  [frame_id1, x1, x2, y1, y2],
-  [frame_id2, x1, x2, y1, y2],
-  ...,
-  [frame_idN, x1, x2, y1, y2],
-]
-```
-
-You can get these `face.npz` files with `extract_bboxes.py` script and [YuNet model](https://github.com/opencv/opencv_zoo/raw/refs/heads/main/models/face_detection_yunet/face_detection_yunet_2023mar.onnx?download=).
 
 ## License
 
