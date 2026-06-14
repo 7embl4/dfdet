@@ -121,13 +121,13 @@ For more parameters check corresponding config in `src/configs` folder.
 
 You may run inference on your data:
 ```bash
-python synthesize.py 
-  --data_path {path_to_dataset}
-  --data_type {video/image}  
+python inference.py 
+  --data_path path_to_dataset
+  --data_type video
   --save_mistakes 
 ```
 
-`save_mistakes` will save classification mistakes in `mistakes.json` (disabled by default).
+`save_mistakes` will save classification mistakes in `saved/mistakes.json` (disabled by default).
 
 ## License
 
